@@ -2,39 +2,46 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>OCR PDF Test (Page 1)</title>
+  <title>OCR PDF Test (Tesseract v4 Stable)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+    body {
+      font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 2rem;
+    }
     #pdfCanvas { display: none; }
     .row { margin: .75rem 0; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
     .dim { color: #666; }
+    input { padding: .4rem; }
   </style>
 </head>
 <body>
-  <h2>OCR Test (PDF → Canvas → Tesseract)</h2>
+
+  <h2>OCR Test (PDF → Canvas → Tesseract v4.1.1)</h2>
 
   <div class="row">
     <input type="file" id="pdfInput" accept="application/pdf" />
   </div>
 
-  <div class="row dim" id="status">Pick a scanned PDF to test.</div>
+  <div class="row dim" id="status">
+    Pick a scanned PDF to test.
+  </div>
+
   <div class="row mono" id="result"></div>
 
-  <!-- Hidden canvas used to render page 1 before OCR -->
   <canvas id="pdfCanvas"></canvas>
 
-  <!-- Load Tesseract UMD build as a global (correctly opened script tag) -->
+  <!-- Load Tesseract v4 locally -->
   <script src="./libs/tesseract/tesseract.min.js"></script>
 
-  <!-- PDF.js (ES module) and app code -->
   <script type="module">
-    /* ------------------------------
-       PDF.js: load local ES modules
-       ------------------------------ */
     import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdfjs/pdf.worker.min.mjs";
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "./libs/pdfjs/pdf.worker.min.mjs";
 
     const fileInput = document.getElementById("pdfInput");
     const statusEl  = document.getElementById("status");
@@ -49,53 +56,45 @@
       statusEl.textContent = "Loading PDF…";
 
       try {
-        // Read file
         const arrayBuffer = await file.arrayBuffer();
 
-        // Open PDF
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdf = await pdfjsLib.getDocument({
+          data: arrayBuffer
+        }).promise;
 
-        // Get first page
         const page = await pdf.getPage(1);
 
-        // Render to canvas (scale can be tuned; higher = sharper OCR but slower)
         const scale = 1.5;
         const viewport = page.getViewport({ scale });
+
         const ctx = canvas.getContext("2d");
         canvas.width = viewport.width;
         canvas.height = viewport.height;
 
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        await page.render({
+          canvasContext: ctx,
+          viewport
+        }).promise;
 
-        statusEl.textContent = "Running OCR…";
+        statusEl.textContent = "Initializing OCR…";
 
-        /* ---------------------------------------------
-           Tesseract: use UMD global and attach logger
-           --------------------------------------------- */
-        const { createWorker, setLogging } = Tesseract;
-
-        // Optional: enable internal logging (this does not pass a function into the worker)
-        setLogging(true);
-
-        const worker = await createWorker({
-          corePath:   "./libs/tesseract/tesseract-core.wasm.js",
-          langPath:   "./libs/tesseract/lang-data/"
+        const worker = Tesseract.createWorker({
+          workerPath: "./libs/tesseract/worker.min.js",
+          corePath: "./libs/tesseract/tesseract-core.wasm.js",
+          langPath: "./libs/tesseract/lang-data"
         });
 
-        // Attach logger on the worker *after* creation (avoids DataCloneError)
-        worker.logger = (m) => {
-          if (m.status === "recognizing text") {
-            statusEl.textContent = `OCR Progress: ${Math.round(m.progress * 100)}%`;
-          }
-        };
-
+        await worker.load();
         await worker.loadLanguage("eng");
         await worker.initialize("eng");
 
+        statusEl.textContent = "Running OCR…";
+
         const { data } = await worker.recognize(canvas);
+
         await worker.terminate();
 
-        const firstWords = data.text
+        const preview = data.text
           .trim()
           .replace(/\s+/g, " ")
           .split(" ")
@@ -103,19 +102,25 @@
           .join(" ");
 
         statusEl.textContent = "OCR complete.";
-        resultEl.textContent = "First OCR words: " + (firstWords || "(none)");
+        resultEl.textContent =
+          "First OCR words: " + (preview || "(none)");
 
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "Error: " + (err && err.message ? err.message : err);
+        statusEl.textContent =
+          "Error: " + (err?.message || err);
       }
     });
   </script>
 
   <p class="dim">
-    If you opened this file directly (via <code>file://</code>) and the WASM/worker won’t load,
-    run a tiny local server from the folder, e.g. <code>python -m http.server 8000</code>
-    and visit <code>http://localhost:8000/test-ocr.html</code>.
+    Make sure all files are local and versions match:
+    <br><br>
+    tesseract.js 4.1.1<br>
+    tesseract.js-core 4.0.2<br>
+    eng.traineddata in /lang-data/<br><br>
+    If GitHub Pages caches old files, hard refresh (Ctrl+Shift+R).
   </p>
+
 </body>
 </html>
