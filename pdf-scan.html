@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PDF Scanner</title>
+</head>
+<body>
+
+<h1>PDF Scanner (AC GOLD / BMD)</h1>
+
+<label>
+  Mode: 
+  <select id="mode">
+    <option value="ACGOLD">AC GOLD</option>
+    <option value="BMD">BMD</option>
+  </select>
+</label>
+
+<br><br>
+
+<label>Upload PDF:
+  <input type="file" id="pdf-file" accept="application/pdf">
+</label>
+
+<br><br>
+
+<button id="run">Run OCR</button>
+
+<p id="status"></p>
+
+<a href="pdf-export.html">Go to PDF Export</a>
+
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script src="js/pdf-scan.js"></script>
+
+</body>
+</html>
