@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>DOCX Builder</title>
+</head>
+<body>
+
+<h1>Generate DOCX</h1>
+
+<label>Replacement Address:
+  <input id="address" type="text" placeholder="Enter address">
+</label>
+
+<br><br>
+
+<label>Select DOCX Template:
+  <input type="file" id="docx-file" accept=".docx">
+</label>
+
+<br><br>
+
+<button id="build">Generate DOCX</button>
+
+<p id="status"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
+<script src="js/docx-builder.js"></script>
+
+</body>
+</html>
