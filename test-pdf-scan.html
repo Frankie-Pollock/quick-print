@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Scan Test</title>
+</head>
+<body>
+    <h2>PDF Text Scan Test</h2>
+
+    <input type="file" id="pdfInput" accept="application/pdf">
+    <p id="output"></p>
+
+    <script type="module">
+        import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
+
+        // Point PDF.js to the local worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdfjs/pdf.worker.min.mjs";
+
+        const input = document.getElementById("pdfInput");
+        const output = document.getElementById("output");
+
+        input.addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const arrayBuffer = await file.arrayBuffer();
+
+            try {
+                // Load the PDF
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                // Get first page
+                const page = await pdf.getPage(1);
+
+                // Extract text content
+                const textContent = await page.getTextContent();
+
+                const strings = textContent.items.map(i => i.str).join(" ");
+                const firstFewWords = strings.split(" ").slice(0, 20).join(" ");
+
+                output.textContent = "First words found: " + firstFewWords;
+
+            } catch (err) {
+                output.textContent = "Error reading PDF: " + err.message;
+                console.error(err);
+            }
+        });
+    </script>
+
+</body>
+</html>
