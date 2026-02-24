@@ -2,48 +2,82 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>PDF Scan Test</title>
+    <title>OCR PDF Test</title>
 </head>
 <body>
-    <h2>PDF Text Scan Test</h2>
+    <h2>OCR Test (First Page of PDF)</h2>
 
     <input type="file" id="pdfInput" accept="application/pdf">
-    <p id="output"></p>
+    <p id="status"></p>
+    <p id="result"></p>
+
+    <canvas id="pdfCanvas" style="display:none;"></canvas>
 
     <script type="module">
+        /* -------------------------------------------------------
+           Load local PDF.js
+        --------------------------------------------------------- */
         import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
-
-        // Point PDF.js to the local worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdfjs/pdf.worker.min.mjs";
 
-        const input = document.getElementById("pdfInput");
-        const output = document.getElementById("output");
+        /* -------------------------------------------------------
+           Load local Tesseract.js
+        --------------------------------------------------------- */
+        import Tesseract from "./libs/tesseract/tesseract.min.js";
 
-        input.addEventListener("change", async (e) => {
+        const status = document.getElementById("status");
+        const result = document.getElementById("result");
+        const pdfCanvas = document.getElementById("pdfCanvas");
+
+        document.getElementById("pdfInput").addEventListener("change", async function (e) {
             const file = e.target.files[0];
             if (!file) return;
 
+            status.textContent = "Loading PDF...";
+            result.textContent = "";
+
             const arrayBuffer = await file.arrayBuffer();
 
-            try {
-                // Load the PDF
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            // Load the PDF
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-                // Get first page
-                const page = await pdf.getPage(1);
+            // Get page 1
+            const page = await pdf.getPage(1);
 
-                // Extract text content
-                const textContent = await page.getTextContent();
+            // Render to canvas (scale = 1.5)
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = pdfCanvas;
+            const context = canvas.getContext("2d");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
 
-                const strings = textContent.items.map(i => i.str).join(" ");
-                const firstFewWords = strings.split(" ").slice(0, 20).join(" ");
+            await page.render({ canvasContext: context, viewport }).promise;
 
-                output.textContent = "First words found: " + firstFewWords;
+            status.textContent = "Running OCR...";
 
-            } catch (err) {
-                output.textContent = "Error reading PDF: " + err.message;
-                console.error(err);
-            }
+            /* -------------------------------------------------------
+               Tesseract OCR Worker (offline)
+            --------------------------------------------------------- */
+            const worker = await Tesseract.createWorker({
+                workerPath: "./libs/tesseract/worker.min.js",
+                corePath: "./libs/tesseract/tesseract-core.wasm.js",
+                langPath: "./libs/tesseract/lang-data/",
+                logger: m => {
+                    status.textContent = "OCR Progress: " + Math.round(m.progress * 100) + "%";
+                }
+            });
+
+            await worker.loadLanguage('eng');
+            await worker.initialize('eng');
+
+            const { data } = await worker.recognize(canvas);
+
+            await worker.terminate();
+
+            const firstWords = data.text.split(/\s+/).slice(0, 20).join(" ");
+
+            status.textContent = "OCR Complete.";
+            result.textContent = "First OCR words: " + firstWords;
         });
     </script>
 
