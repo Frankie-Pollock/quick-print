@@ -1,126 +1,100 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>OCR PDF Test (Tesseract v4 Stable)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>OCR PDF Test - Tesseract v4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body {
-      font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
-      margin: 2rem;
-    }
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
     #pdfCanvas { display: none; }
     .row { margin: .75rem 0; }
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
+    .mono { font-family: monospace; }
     .dim { color: #666; }
-    input { padding: .4rem; }
   </style>
 </head>
 <body>
 
-  <h2>OCR Test (PDF → Canvas → Tesseract v4.1.1)</h2>
+<h2>OCR PDF Test (Tesseract v4.1.1)</h2>
 
-  <div class="row">
-    <input type="file" id="pdfInput" accept="application/pdf" />
-  </div>
+<div class="row">
+  <input type="file" id="pdfInput" accept="application/pdf">
+</div>
 
-  <div class="row dim" id="status">
-    Pick a scanned PDF to test.
-  </div>
+<div class="row dim" id="status">Pick a scanned PDF to test.</div>
+<div class="row mono" id="result"></div>
 
-  <div class="row mono" id="result"></div>
+<canvas id="pdfCanvas"></canvas>
 
-  <canvas id="pdfCanvas"></canvas>
+<!-- Tesseract v4 local -->
+<script src="./libs/tesseract/tesseract.min.js"></script>
 
-  <!-- Load Tesseract v4 locally -->
-  <script src="./libs/tesseract/tesseract.min.js"></script>
+<!-- PDF.js ES module -->
+<script type="module">
+  import * as pdfjsLib from './libs/pdfjs/pdf.min.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './libs/pdfjs/pdf.worker.min.mjs';
 
-  <script type="module">
-    import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
+  const fileInput = document.getElementById('pdfInput');
+  const statusEl = document.getElementById('status');
+  const resultEl = document.getElementById('result');
+  const canvas = document.getElementById('pdfCanvas');
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "./libs/pdfjs/pdf.worker.min.mjs";
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    const fileInput = document.getElementById("pdfInput");
-    const statusEl  = document.getElementById("status");
-    const resultEl  = document.getElementById("result");
-    const canvas    = document.getElementById("pdfCanvas");
+    resultEl.textContent = '';
+    statusEl.textContent = 'Loading PDF…';
 
-    fileInput.addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
 
-      resultEl.textContent = "";
-      statusEl.textContent = "Loading PDF…";
+      const scale = 1.5;
+      const viewport = page.getViewport({ scale });
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-      try {
-        const arrayBuffer = await file.arrayBuffer();
+      await page.render({ canvasContext: ctx, viewport }).promise;
 
-        const pdf = await pdfjsLib.getDocument({
-          data: arrayBuffer
-        }).promise;
+      statusEl.textContent = 'Initializing OCR…';
 
-        const page = await pdf.getPage(1);
+      // v4: synchronous createWorker
+      const worker = Tesseract.createWorker({
+        workerPath: './libs/tesseract/worker.min.js',
+        corePath: './libs/tesseract/tesseract-core.wasm.js',
+        langPath: './libs/tesseract/lang-data'
+      });
 
-        const scale = 1.5;
-        const viewport = page.getViewport({ scale });
+      // v4 API
+      await worker.load();
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
 
-        const ctx = canvas.getContext("2d");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+      statusEl.textContent = 'Running OCR…';
+      const { data } = await worker.recognize(canvas);
+      await worker.terminate();
 
-        await page.render({
-          canvasContext: ctx,
-          viewport
-        }).promise;
+      const preview = data.text.trim().replace(/\s+/g, ' ').split(' ').slice(0, 20).join(' ');
+      statusEl.textContent = 'OCR complete.';
+      resultEl.textContent = 'First OCR words: ' + (preview || '(none)');
 
-        statusEl.textContent = "Initializing OCR…";
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Error: ' + (err?.message || err);
+    }
+  });
+</script>
 
-        const worker = Tesseract.createWorker({
-          workerPath: "./libs/tesseract/worker.min.js",
-          corePath: "./libs/tesseract/tesseract-core.wasm.js",
-          langPath: "./libs/tesseract/lang-data"
-        });
-
-        await worker.load();
-        await worker.loadLanguage("eng");
-        await worker.initialize("eng");
-
-        statusEl.textContent = "Running OCR…";
-
-        const { data } = await worker.recognize(canvas);
-
-        await worker.terminate();
-
-        const preview = data.text
-          .trim()
-          .replace(/\s+/g, " ")
-          .split(" ")
-          .slice(0, 20)
-          .join(" ");
-
-        statusEl.textContent = "OCR complete.";
-        resultEl.textContent =
-          "First OCR words: " + (preview || "(none)");
-
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent =
-          "Error: " + (err?.message || err);
-      }
-    });
-  </script>
-
-  <p class="dim">
-    Make sure all files are local and versions match:
-    <br><br>
-    tesseract.js 4.1.1<br>
-    tesseract.js-core 4.0.2<br>
-    eng.traineddata in /lang-data/<br><br>
-    If GitHub Pages caches old files, hard refresh (Ctrl+Shift+R).
-  </p>
+<p class="dim">
+  Make sure your /libs/tesseract folder contains:<br>
+  tesseract.min.js (4.1.1)<br>
+  worker.min.js (4.1.1)<br>
+  tesseract-core.wasm.js (4.0.2)<br>
+  tesseract-core.wasm (4.0.2)<br>
+  /lang-data/eng.traineddata
+</p>
 
 </body>
 </html>
