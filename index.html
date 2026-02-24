@@ -1,104 +1,244 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>OCR PDF Test - Tesseract v4</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; }
-    #pdfCanvas { display: none; }
-    .row { margin: .75rem 0; }
-    .mono { font-family: monospace; }
-    .dim { color: #666; }
-    input { padding: .4rem; }
-  </style>
-</head>
-<body>
+  <head>
+    <title>pdf2text-ocr</title>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.min.js "></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script type="module">
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.worker.js";
 
-<h2>OCR Test (PDF → Canvas → Tesseract v4.1.1)</h2>
+      const languages = [
+        { name: "English", code: "eng" },
+        { name: "English, Middle (1100-1500)", code: "enm" },
+      ];
 
-<div class="row">
-  <input type="file" id="pdfInput" accept="application/pdf">
-</div>
+      let language = localStorage.getItem("language") ?? "eng";
 
-<div class="row dim" id="status">Pick a scanned PDF to test.</div>
-<div class="row mono" id="result"></div>
+      const readFile = (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.addEventListener("loadend", (event) =>
+            resolve(new Uint8Array(event.target.result))
+          );
+          reader.readAsArrayBuffer(file);
+        });
+      };
 
-<canvas id="pdfCanvas"></canvas>
-
-<!-- Load Tesseract v4 globally (not as module) -->
-<script src="./libs/tesseract/tesseract.min.js"></script>
-
-<!-- PDF.js as module -->
-<script type="module">
-  import * as pdfjsLib from './libs/pdfjs/pdf.min.mjs';
-  pdfjsLib.GlobalWorkerOptions.workerSrc = './libs/pdfjs/pdf.worker.min.mjs';
-
-  const canvas = document.getElementById('pdfCanvas');
-  const statusEl = document.getElementById('status');
-  const resultEl = document.getElementById('result');
-  const fileInput = document.getElementById('pdfInput');
-
-  fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      resultEl.textContent = '';
-      statusEl.textContent = 'Loading PDF…';
-
-      try {
-          const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          const page = await pdf.getPage(1);
-
-          const scale = 1.5;
-          const viewport = page.getViewport({ scale });
-          const ctx = canvas.getContext('2d');
-          canvas.width = viewport.width;
+      const convertToImage = async (pdf) => {
+        const container = document.getElementById("container");
+        const images = [];
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+          const page = await pdf.getPage(pageNumber);
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement("canvas");
           canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          container.appendChild(canvas);
+          await page.render({
+            canvasContext: canvas.getContext("2d"),
+            viewport: viewport,
+          }).promise;
+          images.push(canvas.toDataURL("image/png"));
+        }
+        return images;
+      };
 
-          await page.render({ canvasContext: ctx, viewport }).promise;
+      const convertToText = async (images) => {
+        const worker = await Tesseract.createWorker();
+        await worker.loadLanguage(language);
+        await worker.initialize(language);
 
-          statusEl.textContent = 'Initializing OCR…';
+        const container = document.getElementById("container");
+        for (const image of images) {
+          const {
+            data: { text },
+          } = await worker.recognize(image);
+          const section = document.createElement("section");
+          const pre = document.createElement("pre");
+          pre.appendChild(document.createTextNode(text));
+          section.appendChild(pre);
+          container.appendChild(section);
+        }
 
-          // v4: Tesseract global object
-          const worker = Tesseract.createWorker({
-              workerPath: './libs/tesseract/worker.min.js',
-              corePath: './libs/tesseract/tesseract-core.wasm.js',
-              langPath: './libs/tesseract/lang-data'
-          });
+        await worker.terminate();
+      };
 
-          await worker.load();
-          await worker.loadLanguage('eng');
-          await worker.initialize('eng');
+      const loadFile = async (file) =>
+        pdfjsLib.getDocument({ data: file }).promise;
 
-          statusEl.textContent = 'Running OCR…';
-          const { data } = await worker.recognize(canvas);
-          await worker.terminate();
+      const convertFile = async (file) => {
+        showLoading();
+        const pdf = await loadFile(file);
+        const images = await convertToImage(pdf);
+        await convertToText(images);
+        hideLoading();
+      };
 
-          const preview = data.text.trim().replace(/\s+/g,' ').split(' ').slice(0,20).join(' ');
-          statusEl.textContent = 'OCR complete.';
-          resultEl.textContent = 'First OCR words: ' + (preview || '(none)');
+      const showLoading = () =>
+        (document.getElementById("loading").style.display = "block");
 
-      } catch (err) {
-          console.error(err);
-          statusEl.textContent = 'Error: ' + (err?.message || err);
-      }
-  });
-</script>
+      const hideLoading = () =>
+        (document.getElementById("loading").style.display = "none");
 
-<p class="dim">
-  Folder structure must be correct:
-  <br>
-  /libs/tesseract/
-  <br>&nbsp;&nbsp;tesseract.min.js (v4.1.1)
-  <br>&nbsp;&nbsp;worker.min.js (v4.1.1)
-  <br>&nbsp;&nbsp;tesseract-core.wasm.js (v4.0.2)
-  <br>&nbsp;&nbsp;tesseract-core.wasm (v4.0.2)
-  <br>&nbsp;&nbsp;/lang-data/eng.traineddata
-  <br><br>
-  If GitHub Pages caches old JS, hard refresh: Ctrl+Shift+R / Cmd+Shift+R
-</p>
+      const showError = (error) =>
+        document
+          .getElementById("error")
+          .appendChild(document.createTextNode(`Error: ${error.message}`));
 
-</body>
+      const clearResults = () => {
+        ["container", "loading", "error"].forEach((id) => {
+          let element = document.getElementById(id);
+          element.remove();
+          element = document.createElement("div");
+          element.id = id;
+          if (id === "loading") {
+            element.appendChild(document.createTextNode("Loading..."));
+          }
+          document.body.appendChild(element);
+        });
+      };
+
+      const languageSelect = document.getElementById("language-select");
+      languages.forEach((lang) => {
+        const option = document.createElement("option");
+        option.appendChild(document.createTextNode(lang.name));
+        option.value = lang.code;
+        languageSelect.appendChild(option);
+      });
+
+      languageSelect.value = language;
+      languageSelect.addEventListener("change", (event) => {
+        language = event.target.value;
+        localStorage.setItem("language", language);
+      });
+
+      const fileInput = document.getElementById("file-input");
+      fileInput.addEventListener("change", async () => {
+        clearResults();
+        try {
+          await convertFile(await readFile(fileInput.files[0]));
+        } catch (error) {
+          hideLoading();
+          showError(error);
+        }
+      });
+    </script>
+  </head>
+
+  <body>
+    <h1>pdf2text-ocr</h1>
+    <p>
+      <a href="https://racosa.github.io/pdf2text-ocr/">pdf2text-ocr</a> is a
+      simple tool for converting PDF to text using OCR. Files are converted
+      locally in the browser and are never uploaded to external servers.
+    </p>
+    <p>
+      It can be useful if you are getting gibberish when copying and pasting
+      text from PDF (<a
+        href="https://superuser.com/questions/137824/pdf-has-garbled-text-when-copy-pasting"
+        >example</a
+      >), specially if you don't want to or cannot use a cloud-based solution.
+    </p>
+    <p>
+      Free and open source:
+      <a href="https://github.com/racosa/pdf2text-ocr">Github</a>
+    </p>
+    <div id="input-container">
+      <p>Select the language and a file:</p>
+      <div>
+        <select name="languages" id="language-select"></select>
+      </div>
+      <div>
+        <label id="file-input-label" for="file-input">Select a file</label
+        ><br />
+        <input type="file" id="file-input" name="file-input" multiple />
+      </div>
+    </div>
+    <div id="container"></div>
+    <div id="loading">Loading...</div>
+    <div id="error"></div>
+  </body>
+
+  <style>
+    body {
+      color: #212121;
+      font-family: Arial, sans-serif;
+      scroll-behavior: smooth;
+      font-size: 1.15rem;
+      line-height: 1.5;
+      max-width: 850px;
+      margin: auto;
+      padding-top: 1rem;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    select {
+      font-size: 1.15rem;
+      font-family: inherit;
+      line-height: inherit;
+      padding-left: 1rem;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    select,
+    #file-input-label {
+      padding: 0.5em;
+      border: thin solid grey;
+      border-radius: 3px;
+      cursor: pointer;
+      background-color: #f6f6fb;
+    }
+
+    #input-container {
+      margin-top: 2rem;
+    }
+
+    #input-container div {
+      display: inline-block;
+      margin-right: 1rem;
+    }
+
+    #loading,
+    #error {
+      margin-top: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    #loading {
+      display: none;
+    }
+
+    section {
+      border-top: 1px solid #898ea4;
+      border-bottom: 1px solid #898ea4;
+      padding: 2rem 1rem;
+      margin: 3rem 0;
+    }
+
+    section + section,
+    section:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    pre {
+      font-family: Arial, sans-serif;
+      margin: 0;
+    }
+
+    canvas {
+      display: none;
+    }
+  </style>
 </html>
