@@ -10,11 +10,12 @@
     .row { margin: .75rem 0; }
     .mono { font-family: monospace; }
     .dim { color: #666; }
+    input { padding: .4rem; }
   </style>
 </head>
 <body>
 
-<h2>OCR PDF Test (Tesseract v4.1.1)</h2>
+<h2>OCR Test (PDF → Canvas → Tesseract v4.1.1)</h2>
 
 <div class="row">
   <input type="file" id="pdfInput" accept="application/pdf">
@@ -25,75 +26,78 @@
 
 <canvas id="pdfCanvas"></canvas>
 
-<!-- Tesseract v4 local -->
+<!-- Load Tesseract v4 globally (not as module) -->
 <script src="./libs/tesseract/tesseract.min.js"></script>
 
-<!-- PDF.js ES module -->
+<!-- PDF.js as module -->
 <script type="module">
   import * as pdfjsLib from './libs/pdfjs/pdf.min.mjs';
   pdfjsLib.GlobalWorkerOptions.workerSrc = './libs/pdfjs/pdf.worker.min.mjs';
 
-  const fileInput = document.getElementById('pdfInput');
+  const canvas = document.getElementById('pdfCanvas');
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
-  const canvas = document.getElementById('pdfCanvas');
+  const fileInput = document.getElementById('pdfInput');
 
   fileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+      const file = e.target.files[0];
+      if (!file) return;
 
-    resultEl.textContent = '';
-    statusEl.textContent = 'Loading PDF…';
+      resultEl.textContent = '';
+      statusEl.textContent = 'Loading PDF…';
 
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const page = await pdf.getPage(1);
+      try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const page = await pdf.getPage(1);
 
-      const scale = 1.5;
-      const viewport = page.getViewport({ scale });
-      const ctx = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+          const scale = 1.5;
+          const viewport = page.getViewport({ scale });
+          const ctx = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
 
-      await page.render({ canvasContext: ctx, viewport }).promise;
+          await page.render({ canvasContext: ctx, viewport }).promise;
 
-      statusEl.textContent = 'Initializing OCR…';
+          statusEl.textContent = 'Initializing OCR…';
 
-      // v4: synchronous createWorker
-      const worker = Tesseract.createWorker({
-        workerPath: './libs/tesseract/worker.min.js',
-        corePath: './libs/tesseract/tesseract-core.wasm.js',
-        langPath: './libs/tesseract/lang-data'
-      });
+          // v4: Tesseract global object
+          const worker = Tesseract.createWorker({
+              workerPath: './libs/tesseract/worker.min.js',
+              corePath: './libs/tesseract/tesseract-core.wasm.js',
+              langPath: './libs/tesseract/lang-data'
+          });
 
-      // v4 API
-      await worker.load();
-      await worker.loadLanguage('eng');
-      await worker.initialize('eng');
+          await worker.load();
+          await worker.loadLanguage('eng');
+          await worker.initialize('eng');
 
-      statusEl.textContent = 'Running OCR…';
-      const { data } = await worker.recognize(canvas);
-      await worker.terminate();
+          statusEl.textContent = 'Running OCR…';
+          const { data } = await worker.recognize(canvas);
+          await worker.terminate();
 
-      const preview = data.text.trim().replace(/\s+/g, ' ').split(' ').slice(0, 20).join(' ');
-      statusEl.textContent = 'OCR complete.';
-      resultEl.textContent = 'First OCR words: ' + (preview || '(none)');
+          const preview = data.text.trim().replace(/\s+/g,' ').split(' ').slice(0,20).join(' ');
+          statusEl.textContent = 'OCR complete.';
+          resultEl.textContent = 'First OCR words: ' + (preview || '(none)');
 
-    } catch (err) {
-      console.error(err);
-      statusEl.textContent = 'Error: ' + (err?.message || err);
-    }
+      } catch (err) {
+          console.error(err);
+          statusEl.textContent = 'Error: ' + (err?.message || err);
+      }
   });
 </script>
 
 <p class="dim">
-  Make sure your /libs/tesseract folder contains:<br>
-  tesseract.min.js (4.1.1)<br>
-  worker.min.js (4.1.1)<br>
-  tesseract-core.wasm.js (4.0.2)<br>
-  tesseract-core.wasm (4.0.2)<br>
-  /lang-data/eng.traineddata
+  Folder structure must be correct:
+  <br>
+  /libs/tesseract/
+  <br>&nbsp;&nbsp;tesseract.min.js (v4.1.1)
+  <br>&nbsp;&nbsp;worker.min.js (v4.1.1)
+  <br>&nbsp;&nbsp;tesseract-core.wasm.js (v4.0.2)
+  <br>&nbsp;&nbsp;tesseract-core.wasm (v4.0.2)
+  <br>&nbsp;&nbsp;/lang-data/eng.traineddata
+  <br><br>
+  If GitHub Pages caches old JS, hard refresh: Ctrl+Shift+R / Cmd+Shift+R
 </p>
 
 </body>
