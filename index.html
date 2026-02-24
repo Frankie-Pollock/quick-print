@@ -1,82 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>OCR PDF Test</title>
+  <meta charset="UTF-8" />
+  <title>OCR PDF Test (Page 1)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+    #pdfCanvas { display: none; }
+    .row { margin: .75rem 0; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .dim { color: #666; }
+  </style>
 </head>
 <body>
-    <h2>OCR Test (First Page of PDF)</h2>
+  <h2>OCR Test (PDF → Canvas → Tesseract)</h2>
 
-    <input type="file" id="pdfInput" accept="application/pdf">
-    <p id="status"></p>
-    <p id="result"></p>
+  <div class="row">
+    <input type="file" id="pdfInput" accept="application/pdf" />
+  </div>
 
-    <canvas id="pdfCanvas" style="display:none;"></canvas>
+  <div class="row dim" id="status">Pick a scanned PDF to test.</div>
+  <div class="row mono" id="result"></div>
 
-    <!-- Load Tesseract UMD build -->
-    <script src="./libs/tesseract/tesseract.min.js"></script>
+  <!-- Hidden canvas used to render page 1 before OCR -->
+  <canvas id="pdfCanvas"></canvas>
 
-    <!-- Use ES module only for PDF.js -->
-    <script type="module">
-        import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdfjs/pdf.worker.min.mjs";
+  <!-- Load Tesseract UMD build as a global (NOT via ES module import) -->
+  ./libs/tesseract/tesseract.min.js</script>
 
-        const status = document.getElementById("status");
-        const result = document.getElementById("result");
-        const pdfCanvas = document.getElementById("pdfCanvas");
+  <!-- PDF.js (ES module) and app code -->
+  <script type="module">
+    /* ------------------------------
+       PDF.js: load local ES modules
+       ------------------------------ */
+    import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdfjs/pdf.worker.min.mjs";
 
-        document.getElementById("pdfInput").addEventListener("change", async function (e) {
-            const file = e.target.files[0];
-            if (!file) return;
+    const fileInput = document.getElementById("pdfInput");
+    const statusEl  = document.getElementById("status");
+    const resultEl  = document.getElementById("result");
+    const canvas    = document.getElementById("pdfCanvas");
 
-            status.textContent = "Loading PDF...";
-            result.textContent = "";
+    fileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-            const arrayBuffer = await file.arrayBuffer();
+      resultEl.textContent = "";
+      statusEl.textContent = "Loading PDF…";
 
-            // Load PDF
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      try {
+        // Read file
+        const arrayBuffer = await file.arrayBuffer();
 
-            // Render page 1
-            const page = await pdf.getPage(1);
-            const viewport = page.getViewport({ scale: 1.5 });
-            pdfCanvas.width = viewport.width;
-            pdfCanvas.height = viewport.height;
+        // Open PDF
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-            await page.render({
-                canvasContext: pdfCanvas.getContext("2d"),
-                viewport
-            }).promise;
+        // Get first page
+        const page = await pdf.getPage(1);
 
-            status.textContent = "Running OCR...";
+        // Render to canvas (scale can be tuned; higher = sharper OCR but slower)
+        const scale = 1.5;
+        const viewport = page.getViewport({ scale });
+        const ctx = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-            /* ---------------------------
-                TESSERACT (UMD interface)
-               --------------------------- */
-            const { createWorker } = Tesseract;
+        await page.render({ canvasContext: ctx, viewport }).promise;
 
-            const worker = await createWorker({
-                workerPath: "./libs/tesseract/worker.min.js",
-                corePath: "./libs/tesseract/tesseract-core.wasm.js",
-                langPath: "./libs/tesseract/lang-data/",
-                logger: m => {
-                    status.textContent = "OCR Progress: " + Math.round(m.progress * 100) + "%";
-                }
-            });
+        statusEl.textContent = "Running OCR…";
 
-            await worker.loadLanguage('eng');
-            await worker.initialize('eng');
+        /* ---------------------------------------------
+           Tesseract: use UMD global and attach logger
+           --------------------------------------------- */
+        const { createWorker, setLogging } = Tesseract;
 
-            const { data } = await worker.recognize(pdfCanvas);
+        // Optional: enable internal logging (won’t clone a function into worker)
+        setLogging(true);
 
-            await worker.terminate();
-
-            const firstWords = data.text.split(/\s+/).slice(0, 20).join(" ");
-
-            status.textContent = "OCR Complete.";
-            result.textContent = "First OCR words: " + firstWords;
+        const worker = await createWorker({
+          workerPath: "./libs/tesseract/worker.min.js",
+          corePath:   "./libs/tesseract/tesseract-core.wasm.js",
+          langPath:   "./libs/tesseract/lang-data/"
         });
-    </script>
 
+        // Attach logger on the worker *after* creation (avoids DataCloneError)
+        worker.logger = (m) => {
+          if (m.status === "recognizing text") {
+            statusEl.textContent = `OCR Progress: ${Math.round(m.progress * 100)}%`;
+          }
+        };
+
+        await worker.loadLanguage("eng");
+        await worker.initialize("eng");
+
+        const { data } = await worker.recognize(canvas);
+        await worker.terminate();
+
+        const firstWords = data.text
+          .trim()
+          .replace(/\s+/g, " ")
+          .split(" ")
+          .slice(0, 20)
+          .join(" ");
+
+        statusEl.textContent = "OCR complete.";
+        resultEl.textContent = "First OCR words: " + firstWords || "(none)";
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error: " + (err && err.message ? err.message : err);
+      }
+    });
+  </script>
 </body>
 </html>
