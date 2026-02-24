@@ -1,341 +1,532 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>pdf2text-ocr</title>
-    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.min.js "></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
-    <script type="module">
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.worker.js";
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PDF → OCR → Pages + DOCX Rebuilder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-      const languages = [
-        { name: "English", code: "eng" },
-        { name: "Portuguese", code: "por" },
-        { name: "Afrikaans", code: "afr" },
-        { name: "Albanian", code: "sqi" },
-        { name: "Amharic", code: "amh" },
-        { name: "Arabic", code: "ara" },
-        { name: "Assamese", code: "asm" },
-        { name: "Azerbaijani", code: "aze" },
-        { name: "Azerbaijani - Cyrillic", code: "aze_cyrl" },
-        { name: "Basque", code: "eus" },
-        { name: "Belarusian", code: "bel" },
-        { name: "Bengali", code: "ben" },
-        { name: "Bosnian", code: "bos" },
-        { name: "Bulgarian", code: "bul" },
-        { name: "Burmese", code: "mya" },
-        { name: "Catalan; Valencian", code: "cat" },
-        { name: "Cebuano", code: "ceb" },
-        { name: "Central Khmer", code: "khm" },
-        { name: "Cherokee", code: "chr" },
-        { name: "Chinese - Simplified", code: "chi_sim" },
-        { name: "Chinese - Traditional", code: "chi_tra" },
-        { name: "Croatian", code: "hrv" },
-        { name: "Czech", code: "ces" },
-        { name: "Danish", code: "dan" },
-        { name: "Dutch; Flemish", code: "nld" },
-        { name: "Dzongkha", code: "dzo" },
-        { name: "English, Middle (1100-1500)", code: "enm" },
-        { name: "Esperanto", code: "epo" },
-        { name: "Estonian", code: "est" },
-        { name: "Finnish", code: "fin" },
-        { name: "French", code: "fra" },
-        { name: "French, Middle (ca. 1400-1600)", code: "frm" },
-        { name: "Galician", code: "glg" },
-        { name: "Georgian", code: "kat" },
-        { name: "German", code: "deu" },
-        { name: "German Fraktur", code: "frk" },
-        { name: "Greek, Modern (1453-)", code: "ell" },
-        { name: "Greek, Ancient (-1453)", code: "grc" },
-        { name: "Gujarati", code: "guj" },
-        { name: "Haitian; Haitian Creole", code: "hat" },
-        { name: "Hebrew", code: "heb" },
-        { name: "Hindi", code: "hin" },
-        { name: "Hungarian", code: "hun" },
-        { name: "Icelandic", code: "isl" },
-        { name: "Indonesian", code: "ind" },
-        { name: "Inuktitut", code: "iku" },
-        { name: "Irish", code: "gle" },
-        { name: "Italian", code: "ita" },
-        { name: "Japanese", code: "jpn" },
-        { name: "Javanese", code: "jav" },
-        { name: "Kannada", code: "kan" },
-        { name: "Kazakh", code: "kaz" },
-        { name: "Kirghiz; Kyrgyz", code: "kir" },
-        { name: "Korean", code: "kor" },
-        { name: "Kurdish", code: "kur" },
-        { name: "Lao", code: "lao" },
-        { name: "Latin", code: "lat" },
-        { name: "Latvian", code: "lav" },
-        { name: "Lithuanian", code: "lit" },
-        { name: "Macedonian", code: "mkd" },
-        { name: "Malay", code: "msa" },
-        { name: "Malayalam", code: "mal" },
-        { name: "Maltese", code: "mlt" },
-        { name: "Marathi", code: "mar" },
-        { name: "Nepali", code: "nep" },
-        { name: "Norwegian", code: "nor" },
-        { name: "Oriya", code: "ori" },
-        { name: "Panjabi; Punjabi", code: "pan" },
-        { name: "Persian", code: "fas" },
-        { name: "Polish", code: "pol" },
-        { name: "Pushto; Pashto", code: "pus" },
-        { name: "Romanian; Moldavian; Moldovan", code: "ron" },
-        { name: "Russian", code: "rus" },
-        { name: "Sanskrit", code: "san" },
-        { name: "Serbian", code: "srp" },
-        { name: "Serbian - Latin", code: "srp_latn" },
-        { name: "Sinhala; Sinhalese", code: "sin" },
-        { name: "Slovak", code: "slk" },
-        { name: "Slovenian", code: "slv" },
-        { name: "Spanish; Castilian", code: "spa" },
-        { name: "Swahili", code: "swa" },
-        { name: "Swedish", code: "swe" },
-        { name: "Syriac", code: "syr" },
-        { name: "Tagalog", code: "tgl" },
-        { name: "Tajik", code: "tgk" },
-        { name: "Tamil", code: "tam" },
-        { name: "Telugu", code: "tel" },
-        { name: "Thai", code: "tha" },
-        { name: "Tibetan", code: "bod" },
-        { name: "Tigrinya", code: "tir" },
-        { name: "Turkish", code: "tur" },
-        { name: "Uighur; Uyghur", code: "uig" },
-        { name: "Ukrainian", code: "ukr" },
-        { name: "Urdu", code: "urd" },
-        { name: "Uzbek", code: "uzb" },
-        { name: "Uzbek - Cyrillic", code: "uzb_cyrl" },
-        { name: "Vietnamese", code: "vie" },
-        { name: "Welsh", code: "cym" },
-        { name: "Yiddish", code: "yid" },
-      ];
+  <!-- ========== CDNs ========== -->
+  <!-- pdf.js (render PDF pages to canvas) -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.min.js"></script>
+  <script>
+    // Configure pdf.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.worker.js";
+  </script>
 
-      let language = localStorage.getItem("language") ?? "eng";
+  <!-- tesseract.js (OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
-      const readFile = (file) => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.addEventListener("loadend", (event) =>
-            resolve(new Uint8Array(event.target.result))
-          );
-          reader.readAsArrayBuffer(file);
-        });
-      };
+  <!-- pdf-lib (create new PDFs in browser) -->
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
-      const convertToImage = async (pdf) => {
-        const container = document.getElementById("container");
-        const images = [];
-        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-          const page = await pdf.getPage(pageNumber);
-          const viewport = page.getViewport({ scale: 1.5 });
-          const canvas = document.createElement("canvas");
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-          container.appendChild(canvas);
-          await page.render({
-            canvasContext: canvas.getContext("2d"),
-            viewport: viewport,
-          }).promise;
-          images.push(canvas.toDataURL("image/png"));
-        }
-        return images;
-      };
+  <!-- mammoth (DOCX → HTML) -->
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 
-      const convertToText = async (images) => {
-        const worker = await Tesseract.createWorker();
-        await worker.loadLanguage(language);
-        await worker.initialize(language);
-
-        const container = document.getElementById("container");
-        for (const image of images) {
-          const {
-            data: { text },
-          } = await worker.recognize(image);
-          const section = document.createElement("section");
-          const pre = document.createElement("pre");
-          pre.appendChild(document.createTextNode(text));
-          section.appendChild(pre);
-          container.appendChild(section);
-        }
-
-        await worker.terminate();
-      };
-
-      const loadFile = async (file) =>
-        pdfjsLib.getDocument({ data: file }).promise;
-
-      const convertFile = async (file) => {
-        showLoading();
-        const pdf = await loadFile(file);
-        const images = await convertToImage(pdf);
-        await convertToText(images);
-        hideLoading();
-      };
-
-      const showLoading = () =>
-        (document.getElementById("loading").style.display = "block");
-
-      const hideLoading = () =>
-        (document.getElementById("loading").style.display = "none");
-
-      const showError = (error) =>
-        document
-          .getElementById("error")
-          .appendChild(document.createTextNode(`Error: ${error.message}`));
-
-      const clearResults = () => {
-        ["container", "loading", "error"].forEach((id) => {
-          let element = document.getElementById(id);
-          element.remove();
-          element = document.createElement("div");
-          element.id = id;
-          if (id === "loading") {
-            element.appendChild(document.createTextNode("Loading..."));
-          }
-          document.body.appendChild(element);
-        });
-      };
-
-      const languageSelect = document.getElementById("language-select");
-      languages.forEach((lang) => {
-        const option = document.createElement("option");
-        option.appendChild(document.createTextNode(lang.name));
-        option.value = lang.code;
-        languageSelect.appendChild(option);
-      });
-
-      languageSelect.value = language;
-      languageSelect.addEventListener("change", (event) => {
-        language = event.target.value;
-        localStorage.setItem("language", language);
-      });
-
-      const fileInput = document.getElementById("file-input");
-      fileInput.addEventListener("change", async () => {
-        clearResults();
-        try {
-          await convertFile(await readFile(fileInput.files[0]));
-        } catch (error) {
-          hideLoading();
-          showError(error);
-        }
-      });
-    </script>
-  </head>
-
-  <body>
-    <h1>pdf2text-ocr</h1>
-    <p>
-      <a href="https://racosa.github.io/pdf2text-ocr/">pdf2text-ocr</a> is a
-      simple tool for converting PDF to text using OCR. Files are converted
-      locally in the browser and are never uploaded to external servers.
-    </p>
-    <p>
-      It can be useful if you are getting gibberish when copying and pasting
-      text from PDF (<a
-        href="https://superuser.com/questions/137824/pdf-has-garbled-text-when-copy-pasting"
-        >example</a
-      >), specially if you don't want to or cannot use a cloud-based solution.
-    </p>
-    <p>
-      Free and open source:
-      <a href="https://github.com/racosa/pdf2text-ocr">Github</a>
-    </p>
-    <div id="input-container">
-      <p>Select the language and a file:</p>
-      <div>
-        <select name="languages" id="language-select"></select>
-      </div>
-      <div>
-        <label id="file-input-label" for="file-input">Select a file</label
-        ><br />
-        <input type="file" id="file-input" name="file-input" multiple />
-      </div>
-    </div>
-    <div id="container"></div>
-    <div id="loading">Loading...</div>
-    <div id="error"></div>
-  </body>
+  <!-- docx (build DOCX in browser) -->
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
 
   <style>
-    body {
-      color: #212121;
-      font-family: Arial, sans-serif;
-      scroll-behavior: smooth;
-      font-size: 1.15rem;
-      line-height: 1.5;
-      max-width: 850px;
-      margin: auto;
-      padding-top: 1rem;
+    :root { --accent:#0b5fff; --muted:#f6f7fb; --text:#212121; }
+    html,body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+                color: var(--text); background:#fff; margin:0; padding:0; }
+    header { padding: 1rem 1.25rem; border-bottom: 1px solid #e6e6ef; background: #fff; position: sticky; top: 0; z-index: 5;}
+    main { max-width: 1100px; margin: 0 auto; padding: 1rem 1.25rem 3rem;}
+    h1 { font-size: 1.4rem; margin: 0; }
+    h2 { margin-top: 2rem; }
+    .card { background: #fff; border: 1px solid #e6e6ef; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
+    .col { flex: 1 1 260px; }
+    label { display:block; margin: .25rem 0 .35rem; font-weight: 600;}
+    input[type="file"], input[type="text"], select, button {
+      width: 100%; font-size: 1rem; padding: .7rem .8rem; border: 1px solid #cfd3df;
+      border-radius: 6px; background: #fff;
     }
-
-    a {
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    select {
-      font-size: 1.15rem;
-      font-family: inherit;
-      line-height: inherit;
-      padding-left: 1rem;
-    }
-
-    input[type="file"] {
-      display: none;
-    }
-
-    select,
-    #file-input-label {
-      padding: 0.5em;
-      border: thin solid grey;
-      border-radius: 3px;
-      cursor: pointer;
-      background-color: #f6f6fb;
-    }
-
-    #input-container {
-      margin-top: 2rem;
-    }
-
-    #input-container div {
-      display: inline-block;
-      margin-right: 1rem;
-    }
-
-    #loading,
-    #error {
-      margin-top: 2rem;
-      margin-bottom: 3rem;
-    }
-
-    #loading {
-      display: none;
-    }
-
-    section {
-      border-top: 1px solid #898ea4;
-      border-bottom: 1px solid #898ea4;
-      padding: 2rem 1rem;
-      margin: 3rem 0;
-    }
-
-    section + section,
-    section:first-child {
-      border-top: 0;
-      padding-top: 0;
-    }
-
-    pre {
-      font-family: Arial, sans-serif;
-      margin: 0;
-    }
-
-    canvas {
-      display: none;
-    }
+    input[type="file"] { padding: .45rem .6rem; }
+    button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent;}
+    button.secondary { background: #363a44; }
+    button.ghost { background: #fff; color: var(--text); border-color: #cfd3df; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .muted { color:#676b78; font-size: .95rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .pill { display:inline-block; padding:.2rem .5rem; border-radius:999px; background:var(--muted); border:1px solid #e6e6ef; }
+    .spacer { height: .75rem; }
+    .results { white-space: pre-wrap; background: #fafafa; border:1px dashed #e0e0ea; padding: .75rem; border-radius: 8px; max-height: 320px; overflow:auto;}
+    .ok { color:#0a7a34; }
+    .warn { color:#b05f00; }
+    .err { color:#b00020; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: .75rem; }
+    .small { font-size: .9rem; }
+    .section-title { display:flex; align-items:center; gap:.5rem; }
+    .section-title .badge { font-size:.8rem; }
+    #hidden-canvas { display:none; }
   </style>
+</head>
+
+<body>
+  <header>
+    <h1>PDF OCR + Page Extractor & DOCX Rebuilder</h1>
+  </header>
+
+  <main>
+    <!-- ===================== PDF SECTION ===================== -->
+    <section id="pdf-section">
+      <div class="section-title">
+        <h2>Section 1 — Upload PDF & Run OCR</h2>
+        <span class="badge pill">Client-side only</span>
+      </div>
+
+      <div class="card">
+        <div class="grid">
+          <div>
+            <label for="pdf-language">OCR Language</label>
+            <select id="pdf-language"></select>
+          </div>
+          <div>
+            <label for="pdf-file">PDF File</label>
+            <input type="file" id="pdf-file" accept="application/pdf" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btn-run-ocr" disabled>Process PDF (OCR)</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="grid small">
+          <div><span class="muted">Target phrase:</span> <span class="mono">"6 Garry Place Falkirk"</span></div>
+          <div><span class="muted">Total matches:</span> <strong id="match-count">0</strong></div>
+          <div><span class="muted">Pages with matches:</span> <strong id="match-pages">—</strong></div>
+          <div><span class="muted">Reports to print:</span> <strong id="report-count">Print (0 + 1) asbestos reports</strong></div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="row">
+          <div class="col">
+            <button id="btn-extract" class="secondary" disabled>Download Identified Pages PDF</button>
+          </div>
+          <div class="col">
+            <button id="btn-show-ocr" class="ghost" disabled>Show OCR Text (toggle)</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div id="pdf-progress" class="muted small"></div>
+
+        <div id="ocr-output" class="results" style="display:none;"></div>
+        <canvas id="hidden-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- ===================== DOCX SECTION ===================== -->
+    <section id="docx-section">
+      <div class="section-title">
+        <h2>Section 2 — Upload DOCX Template & Rebuild</h2>
+        <span class="badge pill">Page 2 duplicated after original</span>
+      </div>
+
+      <div class="card">
+        <p class="muted small">
+          This will replace <span class="mono">"6 Garry Place Falkirk"</span> with your input,
+          then duplicate <strong>Page 2</strong> exactly <span class="mono">count</span> times
+          (where <span class="mono">count</span> is the number of phrase occurrences found in the PDF).
+        </p>
+
+        <div class="grid">
+          <div>
+            <label for="address-input">Replacement Address</label>
+            <input id="address-input" type="text" placeholder="e.g., 10 New Street, Falkirk FK1 1AA" />
+          </div>
+          <div>
+            <label for="docx-file">DOCX Template</label>
+            <input type="file" id="docx-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btn-build-docx" disabled>Generate Modified .docx</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="grid small">
+          <div><span class="muted">Replace string:</span> <span class="mono">"6 Garry Place Falkirk"</span></div>
+          <div><span class="muted">Using address:</span> <span id="addr-preview" class="mono">—</span></div>
+          <div><span class="muted">Duplicate Page 2 times (count):</span> <strong id="dup-count">0</strong></div>
+        </div>
+
+        <div class="spacer"></div>
+        <div id="docx-status" class="muted small"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    /**********************
+     * GLOBAL STATE
+     **********************/
+    const PHRASE = "6 Garry Place Falkirk";
+    const languages = [
+      { name: "English", code: "eng" },
+      { name: "Portuguese", code: "por" }, { name: "Afrikaans", code: "afr" },
+      { name: "Albanian", code: "sqi" }, { name: "Amharic", code: "amh" }, { name: "Arabic", code: "ara" },
+      { name: "Assamese", code: "asm" }, { name: "Azerbaijani", code: "aze" }, { name: "Azerbaijani - Cyrillic", code: "aze_cyrl" },
+      { name: "Basque", code: "eus" }, { name: "Belarusian", code: "bel" }, { name: "Bengali", code: "ben" },
+      { name: "Bosnian", code: "bos" }, { name: "Bulgarian", code: "bul" }, { name: "Burmese", code: "mya" },
+      { name: "Catalan; Valencian", code: "cat" }, { name: "Cebuano", code: "ceb" }, { name: "Central Khmer", code: "khm" },
+      { name: "Cherokee", code: "chr" }, { name: "Chinese - Simplified", code: "chi_sim" }, { name: "Chinese - Traditional", code: "chi_tra" },
+      { name: "Croatian", code: "hrv" }, { name: "Czech", code: "ces" }, { name: "Danish", code: "dan" },
+      { name: "Dutch; Flemish", code: "nld" }, { name: "Dzongkha", code: "dzo" }, { name: "English, Middle (1100-1500)", code: "enm" },
+      { name: "Esperanto", code: "epo" }, { name: "Estonian", code: "est" }, { name: "Finnish", code: "fin" },
+      { name: "French", code: "fra" }, { name: "French, Middle (ca. 1400-1600)", code: "frm" }, { name: "Galician", code: "glg" },
+      { name: "Georgian", code: "kat" }, { name: "German", code: "deu" }, { name: "German Fraktur", code: "frk" },
+      { name: "Greek, Modern (1453-)", code: "ell" }, { name: "Greek, Ancient (-1453)", code: "grc" },
+      { name: "Gujarati", code: "guj" }, { name: "Haitian; Haitian Creole", code: "hat" }, { name: "Hebrew", code: "heb" },
+      { name: "Hindi", code: "hin" }, { name: "Hungarian", code: "hun" }, { name: "Icelandic", code: "isl" },
+      { name: "Indonesian", code: "ind" }, { name: "Inuktitut", code: "iku" }, { name: "Irish", code: "gle" },
+      { name: "Italian", code: "ita" }, { name: "Japanese", code: "jpn" }, { name: "Javanese", code: "jav" },
+      { name: "Kannada", code: "kan" }, { name: "Kazakh", code: "kaz" }, { name: "Kirghiz; Kyrgyz", code: "kir" },
+      { name: "Korean", code: "kor" }, { name: "Kurdish", code: "kur" }, { name: "Lao", code: "lao" },
+      { name: "Latin", code: "lat" }, { name: "Latvian", code: "lav" }, { name: "Lithuanian", code: "lit" },
+      { name: "Macedonian", code: "mkd" }, { name: "Malay", code: "msa" }, { name: "Malayalam", code: "mal" },
+      { name: "Maltese", code: "mlt" }, { name: "Marathi", code: "mar" }, { name: "Nepali", code: "nep" },
+      { name: "Norwegian", code: "nor" }, { name: "Oriya", code: "ori" }, { name: "Panjabi; Punjabi", code: "pan" },
+      { name: "Persian", code: "fas" }, { name: "Polish", code: "pol" }, { name: "Pushto; Pashto", code: "pus" },
+      { name: "Romanian; Moldavian; Moldovan", code: "ron" }, { name: "Russian", code: "rus" },
+      { name: "Sanskrit", code: "san" }, { name: "Serbian", code: "srp" }, { name: "Serbian - Latin", code: "srp_latn" },
+      { name: "Sinhala; Sinhalese", code: "sin" }, { name: "Slovak", code: "slk" }, { name: "Slovenian", code: "slv" },
+      { name: "Spanish; Castilian", code: "spa" }, { name: "Swahili", code: "swa" }, { name: "Swedish", code: "swe" },
+      { name: "Syriac", code: "syr" }, { name: "Tagalog", code: "tgl" }, { name: "Tajik", code: "tgk" },
+      { name: "Tamil", code: "tam" }, { name: "Telugu", code: "tel" }, { name: "Thai", code: "tha" },
+      { name: "Tibetan", code: "bod" }, { name: "Tigrinya", code: "tir" }, { name: "Turkish", code: "tur" },
+      { name: "Uighur; Uyghur", code: "uig" }, { name: "Ukrainian", code: "ukr" }, { name: "Urdu", code: "urd" },
+      { name: "Uzbek", code: "uzb" }, { name: "Uzbek - Cyrillic", code: "uzb_cyrl" }, { name: "Vietnamese", code: "vie" },
+      { name: "Welsh", code: "cym" }, { name: "Yiddish", code: "yid" },
+    ];
+
+    let language = localStorage.getItem("language") ?? "eng";
+    let totalCount = 0;
+    let pagesWithPhrase = [];
+    let originalPdfBytes = null;   // Uint8Array of uploaded PDF
+    let ocrTextPerPage = [];       // for display
+    let ocrVisible = false;
+
+    const el = (id) => document.getElementById(id);
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    /**********************
+     * UI INITIALIZATION
+     **********************/
+    const langSelect = el("pdf-language");
+    languages.forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l.code; opt.textContent = l.name;
+      langSelect.appendChild(opt);
+    });
+    langSelect.value = language;
+    langSelect.addEventListener("change", e => {
+      language = e.target.value;
+      localStorage.setItem("language", language);
+    });
+
+    // Enable buttons when files/inputs present
+    el("pdf-file").addEventListener("change", () => {
+      el("btn-run-ocr").disabled = !el("pdf-file").files.length;
+    });
+    el("address-input").addEventListener("input", () => {
+      el("addr-preview").textContent = el("address-input").value || "—";
+      el("btn-build-docx").disabled = !(el("docx-file").files.length && el("address-input").value.trim().length);
+    });
+    el("docx-file").addEventListener("change", () => {
+      el("btn-build-docx").disabled = !(el("docx-file").files.length && el("address-input").value.trim().length);
+    });
+
+    el("btn-show-ocr").addEventListener("click", () => {
+      ocrVisible = !ocrVisible;
+      el("ocr-output").style.display = ocrVisible ? "block" : "none";
+      el("btn-show-ocr").textContent = ocrVisible ? "Hide OCR Text" : "Show OCR Text (toggle)";
+    });
+
+    /**********************
+     * HELPERS
+     **********************/
+    function readAsUint8Array(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function setPdfProgress(msg) {
+      el("pdf-progress").textContent = msg;
+    }
+
+    function updatePdfUi() {
+      el("match-count").textContent = totalCount;
+      el("match-pages").textContent = pagesWithPhrase.length ? pagesWithPhrase.join(", ") : "—";
+      el("report-count").textContent = `Print (${totalCount + 1}) asbestos reports`;
+      el("dup-count").textContent = totalCount;
+      el("btn-extract").disabled = !(originalPdfBytes && pagesWithPhrase.length > 0);
+      el("btn-show-ocr").disabled = ocrTextPerPage.length === 0;
+      // OCR text
+      el("ocr-output").textContent = ocrTextPerPage.map((t, i) => `--- Page ${i+1} ---\n${t.trim()}\n`).join("\n");
+    }
+
+    function regexCount(haystack, needle) {
+      // exact phrase, case-insensitive
+      const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      return (haystack.match(re) || []).length;
+    }
+
+    /**********************
+     * PDF → OCR → COUNT
+     **********************/
+    async function pdfToImages(pdf, scale = 2.0) {
+      const canvas = el("hidden-canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+      const pages = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        pages.push(canvas.toDataURL("image/png"));
+      }
+      return pages;
+    }
+
+    async function runOcrOnImages(images) {
+      const worker = await Tesseract.createWorker({ logger: m => {
+        if (m.status) setPdfProgress(`${m.status} ${m.progress ? Math.round(m.progress*100) + '%' : ''}`);
+      }});
+      await worker.loadLanguage(language);
+      await worker.initialize(language);
+
+      totalCount = 0;
+      pagesWithPhrase = [];
+      ocrTextPerPage = [];
+
+      for (let i = 0; i < images.length; i++) {
+        setPdfProgress(`Recognizing page ${i+1}/${images.length}...`);
+        const { data: { text } } = await worker.recognize(images[i]);
+        ocrTextPerPage.push(text);
+        const c = regexCount(text, PHRASE);
+        if (c > 0) pagesWithPhrase.push(i + 1);
+        totalCount += c;
+      }
+
+      await worker.terminate();
+      setPdfProgress("Done.");
+      updatePdfUi();
+    }
+
+    async function handlePdfProcess() {
+      try {
+        el("btn-run-ocr").disabled = true;
+        setPdfProgress("Loading PDF...");
+        const file = el("pdf-file").files[0];
+        if (!file) return;
+
+        originalPdfBytes = await readAsUint8Array(file);
+        const pdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
+
+        setPdfProgress(`Rendering ${pdf.numPages} page(s)...`);
+        const images = await pdfToImages(pdf, 2.0);
+        await runOcrOnImages(images);
+      } catch (err) {
+        setPdfProgress(`Error: ${err.message || err}`);
+        console.error(err);
+      } finally {
+        el("btn-run-ocr").disabled = false;
+      }
+    }
+
+    el("btn-run-ocr").addEventListener("click", handlePdfProcess);
+
+    /**********************
+     * PDF PAGE EXTRACTION (pdf-lib)
+     **********************/
+    async function extractMatchedPages() {
+      try {
+        if (!originalPdfBytes || pagesWithPhrase.length === 0) return;
+        const { PDFDocument } = window.PDFLib;
+        const srcDoc = await PDFDocument.load(originalPdfBytes);
+        const out = await PDFDocument.create();
+
+        for (const pageNum of pagesWithPhrase) {
+          const [copied] = await out.copyPages(srcDoc, [pageNum - 1]);
+          out.addPage(copied);
+        }
+
+        const bytes = await out.save();
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "extracted-pages.pdf";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      } catch (err) {
+        alert("Failed to extract pages: " + (err.message || err));
+        console.error(err);
+      }
+    }
+
+    el("btn-extract").addEventListener("click", extractMatchedPages);
+
+    /**********************
+     * DOCX PROCESSING
+     * - Replace "6 Garry Place Falkirk" with dynamic input
+     * - Duplicate Page 2 (table #2) exactly totalCount times (after original)
+     * - Rebuild DOCX using docx API
+     **********************/
+    function replaceInTextNodes(root, from, to) {
+      const re = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"); // case-sensitive exact
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+      const toReplace = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (re.test(node.nodeValue)) toReplace.push(node);
+      }
+      toReplace.forEach(node => {
+        node.nodeValue = node.nodeValue.replace(re, to);
+      });
+      return toReplace.length;
+    }
+
+    // Convert Mammoth HTML tables to docx.Table (plain text)
+    function htmlTablesToDocxTables(doc, htmlDocument) {
+      const { Table, TableRow, TableCell, Paragraph, WidthType } = window.docx;
+      const tables = $$("table", htmlDocument.body);
+      return tables.map(tbl => {
+        const rows = $$("tr", tbl).map(tr => {
+          const cells = $$("th,td", tr).map(td => {
+            // Split cell content into paragraphs by <p> and <br>
+            const paras = [];
+            const collectParagraphs = (node) => {
+              // if <p>, push textContent
+              if (node.nodeType === 1 && node.tagName.toLowerCase() === "p") {
+                paras.push(node.textContent || "");
+              } else if (node.nodeType === 1) {
+                // for elements, iterate children
+                node.childNodes.forEach(collectParagraphs);
+              } else if (node.nodeType === 3) {
+                // text node
+                paras.push(node.nodeValue || "");
+              }
+            };
+            collectParagraphs(td);
+            const paragraphs = (paras.length ? paras : [""]).map(t => new Paragraph(String(t).replace(/\u00A0/g, " ")));
+            return new TableCell({ children: paragraphs });
+          });
+          return new TableRow({ children: cells });
+        });
+        return new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows
+        });
+      });
+    }
+
+    async function buildModifiedDocx() {
+      const docxStatus = el("docx-status");
+      docxStatus.textContent = "";
+
+      const replacementAddress = el("address-input").value.trim();
+      const file = el("docx-file").files[0];
+
+      if (!replacementAddress) {
+        docxStatus.innerHTML = `<span class="err">Please enter a replacement address.</span>`;
+        return;
+      }
+      if (!file) {
+        docxStatus.innerHTML = `<span class="err">Please select a DOCX template.</span>`;
+        return;
+      }
+
+      // Gentle reminder if count = 0
+      if (totalCount === 0) {
+        docxStatus.innerHTML = `<span class="warn">Note: PDF count is 0 — Page 2 will not be duplicated. Run OCR first if needed.</span>`;
+      }
+
+      try {
+        el("btn-build-docx").disabled = true;
+
+        // 1) DOCX → HTML with Mammoth
+        docxStatus.textContent = "Converting DOCX to HTML...";
+        const arrayBuffer = await file.arrayBuffer();
+        const { value: htmlString } = await window.mammoth.convertToHtml({ arrayBuffer });
+
+        // 2) Replace exact string in HTML (DOM-safe)
+        const parser = new DOMParser();
+        const htmlDoc = parser.parseFromString(`<div id="root">${htmlString}</div>`, "text/html");
+        const replacedCount = replaceInTextNodes(htmlDoc.body, PHRASE, replacementAddress);
+
+        // 3) Identify tables (pages) and duplicate Page 2 count times (Option A)
+        const tables = $$("table", htmlDoc.body);
+        if (tables.length < 2) {
+          docxStatus.innerHTML = `<span class="err">Expected at least 2 tables (pages) in the template. Found ${tables.length}.</span>`;
+          el("btn-build-docx").disabled = false;
+          return;
+        }
+
+        // Insert duplicates immediately after original Page 2, before Page 3
+        const page2 = tables[1];
+        for (let i = 0; i < totalCount; i++) {
+          const clone = page2.cloneNode(true);
+          page2.parentNode.insertBefore(clone, page2.nextSibling);
+        }
+
+        // 4) Build new DOCX using docx
+        docxStatus.textContent = "Rebuilding DOCX...";
+        const { Document, Packer, Paragraph } = window.docx;
+
+        const docxTables = htmlTablesToDocxTables(window.docx, htmlDoc);
+        const children = [];
+
+        // Simple heading
+        children.push(new Paragraph("")); // spacer
+
+        // Append all tables (Page1, Page2, duplicates..., Page3...)
+        docxTables.forEach(t => children.push(t));
+        children.push(new Paragraph("")); // spacer
+
+        const newDoc = new Document({
+          sections: [{ children }]
+        });
+
+        const blob = await Packer.toBlob(newDoc);
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "modified-template.docx";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+
+        docxStatus.innerHTML =
+          `<span class="ok">Done.</span> Replaced <span class="mono">${PHRASE}</span> → <span class="mono">${replacementAddress}</span> (${replacedCount} occurrence(s)). ` +
+          `Page 2 duplicated <strong>${totalCount}</strong> time(s).`;
+      } catch (err) {
+        console.error(err);
+        docxStatus.innerHTML = `<span class="err">Failed to build DOCX: ${err.message || err}</span>`;
+      } finally {
+        el("btn-build-docx").disabled = false;
+      }
+    }
+
+    el("btn-build-docx").addEventListener("click", buildModifiedDocx);
+
+    /**********************
+     * EXTRACT PDF BUTTON ENABLE WHEN OCR FINISHED
+     **********************/
+    // Update extract button state after OCR updates UI
+    const observer = new MutationObserver(() => {
+      el("btn-extract").disabled = !(originalPdfBytes && pagesWithPhrase.length > 0);
+    });
+    observer.observe(el("match-pages"), { childList: true });
+
+  </script>
+</body>
 </html>
