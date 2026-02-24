@@ -13,17 +13,13 @@
 
     <canvas id="pdfCanvas" style="display:none;"></canvas>
 
+    <!-- Load Tesseract UMD build -->
+    <script src="./libs/tesseract/tesseract.min.js"></script>
+
+    <!-- Use ES module only for PDF.js -->
     <script type="module">
-        /* -------------------------------------------------------
-           Load local PDF.js
-        --------------------------------------------------------- */
         import * as pdfjsLib from "./libs/pdfjs/pdf.min.mjs";
         pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdfjs/pdf.worker.min.mjs";
-
-        /* -------------------------------------------------------
-           Load local Tesseract.js
-        --------------------------------------------------------- */
-        import Tesseract from "./libs/tesseract/tesseract.min.js";
 
         const status = document.getElementById("status");
         const result = document.getElementById("result");
@@ -38,27 +34,28 @@
 
             const arrayBuffer = await file.arrayBuffer();
 
-            // Load the PDF
+            // Load PDF
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-            // Get page 1
+            // Render page 1
             const page = await pdf.getPage(1);
-
-            // Render to canvas (scale = 1.5)
             const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = pdfCanvas;
-            const context = canvas.getContext("2d");
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+            pdfCanvas.width = viewport.width;
+            pdfCanvas.height = viewport.height;
 
-            await page.render({ canvasContext: context, viewport }).promise;
+            await page.render({
+                canvasContext: pdfCanvas.getContext("2d"),
+                viewport
+            }).promise;
 
             status.textContent = "Running OCR...";
 
-            /* -------------------------------------------------------
-               Tesseract OCR Worker (offline)
-            --------------------------------------------------------- */
-            const worker = await Tesseract.createWorker({
+            /* ---------------------------
+                TESSERACT (UMD interface)
+               --------------------------- */
+            const { createWorker } = Tesseract;
+
+            const worker = await createWorker({
                 workerPath: "./libs/tesseract/worker.min.js",
                 corePath: "./libs/tesseract/tesseract-core.wasm.js",
                 langPath: "./libs/tesseract/lang-data/",
@@ -70,7 +67,7 @@
             await worker.loadLanguage('eng');
             await worker.initialize('eng');
 
-            const { data } = await worker.recognize(canvas);
+            const { data } = await worker.recognize(pdfCanvas);
 
             await worker.terminate();
 
