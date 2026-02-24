@@ -78,7 +78,6 @@
         setLogging(true);
 
         const worker = await createWorker({
-          workerPath: "./libs/tesseract/worker.min.js",
           corePath:   "./libs/tesseract/tesseract-core.wasm.js",
           langPath:   "./libs/tesseract/lang-data/"
         });
