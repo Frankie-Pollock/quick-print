@@ -1,19 +1,609 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>PDF & DOCX Processing Tool</title>
+  <meta charset="utf-8" />
+  <title>PDF OCR Modes (AC GOLD / BMD) + DOCX Rebuilder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- =================== CDNs =================== -->
+  <!-- pdf.js -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.6.172/build/pdf.worker.js";
+  </script>
+
+  <!-- tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <!-- pdf-lib -->
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+  <!-- mammoth (DOCX -> HTML) -->
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+
+  <!-- docx (build DOCX) -->
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
+
+  <style>
+    :root { --accent:#0b5fff; --muted:#f6f7fb; --text:#212121; }
+    html,body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+                color: var(--text); margin:0; background:#fff; }
+    header { padding:1rem 1.25rem; border-bottom:1px solid #e6e6ef; position:sticky; top:0; background:#fff; z-index:5; }
+    main { max-width: 1120px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+    h1 { font-size:1.25rem; margin:0; }
+    h2 { margin-top:2rem; }
+    .card { border:1px solid #e6e6ef; border-radius:10px; padding:1rem; background:#fff; }
+    .row { display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end; }
+    .col { flex:1 1 260px; }
+    label { display:block; font-weight:600; margin:.25rem 0 .35rem; }
+    input[type="file"], input[type="text"], select, button {
+      width:100%; font-size:1rem; padding:.7rem .8rem; border:1px solid #cfd3df; border-radius:8px; background:#fff;
+    }
+    input[type="file"] { padding:.45rem .6rem; }
+    button { cursor:pointer; background:var(--accent); color:#fff; border-color:transparent; }
+    button.secondary { background:#363a44; }
+    button.ghost { background:#fff; color:var(--text); border-color:#cfd3df; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .muted { color:#676b78; }
+    .small { font-size:.92rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .pill { display:inline-block; padding:.18rem .6rem; border-radius:999px; border:1px solid #e6e6ef; background:var(--muted); }
+    .spacer { height:.75rem; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:.75rem; }
+    .results { white-space:pre-wrap; background:#fafafa; border:1px dashed #e0e0ea; padding:.75rem; border-radius:8px; max-height:320px; overflow:auto; }
+    #hidden-canvas { display:none; }
+    .section-title { display:flex; align-items:center; gap:.5rem; }
+    .ok { color:#0a7a34; } .warn { color:#b05f00; } .err { color:#b00020; }
+  </style>
 </head>
 <body>
-  <h1>Document Processing Tool</h1>
+  <header>
+    <h1>PDF OCR + Page Extraction (AC GOLD / BMD) & DOCX Rebuilder</h1>
+  </header>
 
-  <p>Select an action:</p>
+  <main>
+    <!-- ============= PDF SECTION ============= -->
+    <section>
+      <div class="section-title">
+        <h2>Section 1 — Upload PDF & Run OCR</h2>
+        <span class="badge pill">Client-side only</span>
+      </div>
 
-  <ul>
-    <li><a href="pdf-scan.html">Scan PDF (AC GOLD / BMD)</a></li>
-    <li><a href="pdf-export.html">Export Extracted PDF</a></li>
-    <li><a href="docx-builder.html">Generate Modified DOCX</a></li>
-  </ul>
+      <div class="card">
+        <div class="grid">
+          <div>
+            <label>Mode</label>
+            <div class="row" style="align-items:center;">
+              <label class="pill"><input type="radio" name="mode" value="ACGOLD" checked /> AC GOLD</label>
+              <label class="pill"><input type="radio" name="mode" value="BMD" /> BMD</label>
+            </div>
+            <div class="small muted" id="mode-help">
+              AC GOLD: Look for <span class="mono">Trade: PA - Painter</span> or <span class="mono">Trade: LB - Labourer</span> near top; stop at <span class="mono">HEALTH AND SAFETY CHECK LIST</span>.
+            </div>
+          </div>
 
+          <div>
+            <label for="pdf-language">OCR Language</label>
+            <select id="pdf-language"></select>
+          </div>
+
+          <div>
+            <label for="pdf-file">PDF File</label>
+            <input type="file" id="pdf-file" accept="application/pdf" />
+          </div>
+
+          <div>
+            <label>&nbsp;</label>
+            <button id="btn-run-ocr" disabled>Process PDF (OCR)</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="grid small">
+          <div><span class="muted">Mode:</span> <strong id="mode-label">AC GOLD</strong></div>
+          <div><span class="muted">Count:</span> <strong id="match-count">0</strong></div>
+          <div><span class="muted">Selected pages:</span> <strong id="match-pages">—</strong></div>
+          <div><span class="muted">Reports line:</span> <strong id="report-count">Print (0 + 1) asbestos reports</strong></div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="row">
+          <div class="col">
+            <button id="btn-extract" class="secondary" disabled>Download Identified Pages PDF</button>
+          </div>
+          <div class="col">
+            <button id="btn-show-ocr" class="ghost" disabled>Show OCR Text (toggle)</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div id="pdf-progress" class="muted small"></div>
+        <div id="ocr-output" class="results" style="display:none;"></div>
+        <canvas id="hidden-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- ============= DOCX SECTION ============= -->
+    <section>
+      <div class="section-title">
+        <h2>Section 2 — Upload DOCX Template & Rebuild</h2>
+        <span class="badge pill">Page 2 duplicated after original</span>
+      </div>
+
+      <div class="card">
+        <p class="muted small">
+          This replaces <span class="mono">"6 Garry Place Falkirk"</span> with your input, then duplicates <strong>Page 2</strong>
+          exactly <span class="mono">count</span> times, where <span class="mono">count</span> comes from the PDF scan result for the selected mode.
+        </p>
+
+        <div class="grid">
+          <div>
+            <label for="address-input">Replacement Address</label>
+            <input id="address-input" type="text" placeholder="e.g., 10 New Street, Falkirk FK1 1AA" />
+          </div>
+          <div>
+            <label for="docx-file">DOCX Template</label>
+            <input type="file" id="docx-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btn-build-docx" disabled>Generate Modified .docx</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="grid small">
+          <div><span class="muted">Replace string:</span> <span class="mono">"6 Garry Place Falkirk"</span></div>
+          <div><span class="muted">Using address:</span> <span id="addr-preview" class="mono">—</span></div>
+          <div><span class="muted">Duplicate Page 2 times (count):</span> <strong id="dup-count">0</strong></div>
+        </div>
+
+        <div class="spacer"></div>
+        <div id="docx-status" class="muted small"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    /***************
+     * CONFIG
+     ***************/
+    const PHRASE_DOCX = "6 Garry Place Falkirk"; // for DOCX replacement only
+    const TOP_LINES = 25;  // how many OCR lines define the "top block"
+    const TOP_CHARS = 1800; // and/or a character cap for the top block
+
+    const ACGOLD_START_REGEXES = [
+      /Trade:\s*PA\s*-\s*Painter/i,
+      /Trade:\s*LB\s*-\s*Labourer/i
+    ];
+    const ANY_TRADE_REGEX = /(^|\n|\r) *Trade:/i;
+    const BLOCKERS_BEFORE_TRADE = [
+      /Falkirk\s+Council\s+JOB\s+TICKET\s*-\s*.*Job\s+Visit\s+Details\s+for/i,
+      /Additional\s+Info/i
+    ];
+    const STOP_AT_HEADER = /HEALTH\s+AND\s+SAFETY\s+CHECK\s+LIST/i;
+
+    /***************
+     * STATE
+     ***************/
+    let mode = "ACGOLD"; // "ACGOLD" or "BMD"
+    let language = localStorage.getItem("language") ?? "eng";
+
+    let originalPdfBytes = null;
+    let ocrTextPerPage = [];       // full OCR text by page
+    let topBlockPerPage = [];      // extracted top block by page
+    let selectedPages = [];        // 1-based page numbers to export (AC GOLD)
+    let countForReports = 0;       // AC GOLD: #bundles; BMD: #Trade occurrences
+    let ocrVisible = false;
+
+    const el = (id) => document.getElementById(id);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    const languages = [
+      { name: "English", code: "eng" },
+      { name: "Portuguese", code: "por" }, { name: "Afrikaans", code: "afr" },
+      { name: "Albanian", code: "sqi" }, { name: "Amharic", code: "amh" }, { name: "Arabic", code: "ara" },
+      { name: "Assamese", code: "asm" }, { name: "Azerbaijani", code: "aze" }, { name: "Azerbaijani - Cyrillic", code: "aze_cyrl" },
+      { name: "Basque", code: "eus" }, { name: "Belarusian", code: "bel" }, { name: "Bengali", code: "ben" },
+      { name: "Bosnian", code: "bos" }, { name: "Bulgarian", code: "bul" }, { name: "Burmese", code: "mya" },
+      { name: "Catalan; Valencian", code: "cat" }, { name: "Cebuano", code: "ceb" }, { name: "Central Khmer", code: "khm" },
+      { name: "Cherokee", code: "chr" }, { name: "Chinese - Simplified", code: "chi_sim" }, { name: "Chinese - Traditional", code: "chi_tra" },
+      { name: "Croatian", code: "hrv" }, { name: "Czech", code: "ces" }, { name: "Danish", code: "dan" },
+      { name: "Dutch; Flemish", code: "nld" }, { name: "Dzongkha", code: "dzo" }, { name: "English, Middle (1100-1500)", code: "enm" },
+      { name: "Esperanto", code: "epo" }, { name: "Estonian", code: "est" }, { name: "Finnish", code: "fin" },
+      { name: "French", code: "fra" }, { name: "French, Middle (ca. 1400-1600)", code: "frm" }, { name: "Galician", code: "glg" },
+      { name: "Georgian", code: "kat" }, { name: "German", code: "deu" }, { name: "German Fraktur", code: "frk" },
+      { name: "Greek, Modern (1453-)", code: "ell" }, { name: "Greek, Ancient (-1453)", code: "grc" },
+      { name: "Gujarati", code: "guj" }, { name: "Haitian; Haitian Creole", code: "hat" }, { name: "Hebrew", code: "heb" },
+      { name: "Hindi", code: "hin" }, { name: "Hungarian", code: "hun" }, { name: "Icelandic", code: "isl" },
+      { name: "Indonesian", code: "ind" }, { name: "Inuktitut", code: "iku" }, { name: "Irish", code: "gle" },
+      { name: "Italian", code: "ita" }, { name: "Japanese", code: "jpn" }, { name: "Javanese", code: "jav" },
+      { name: "Kannada", code: "kan" }, { name: "Kazakh", code: "kaz" }, { name: "Kirghiz; Kyrgyz", code: "kir" },
+      { name: "Korean", code: "kor" }, { name: "Kurdish", code: "kur" }, { name: "Lao", code: "lao" },
+      { name: "Latin", code: "lat" }, { name: "Latvian", code: "lav" }, { name: "Lithuanian", code: "lit" },
+      { name: "Macedonian", code: "mkd" }, { name: "Malay", code: "msa" }, { name: "Malayalam", code: "mal" },
+      { name: "Maltese", code: "mlt" }, { name: "Marathi", code: "mar" }, { name: "Nepali", code: "nep" },
+      { name: "Norwegian", code: "nor" }, { name: "Oriya", code: "ori" }, { name: "Panjabi; Punjabi", code: "pan" },
+      { name: "Persian", code: "fas" }, { name: "Polish", code: "pol" }, { name: "Pushto; Pashto", code: "pus" },
+      { name: "Romanian; Moldavian; Moldovan", code: "ron" }, { name: "Russian", code: "rus" },
+      { name: "Sanskrit", code: "san" }, { name: "Serbian", code: "srp" }, { name: "Serbian - Latin", code: "srp_latn" },
+      { name: "Sinhala; Sinhalese", code: "sin" }, { name: "Slovak", code: "slk" }, { name: "Slovenian", code: "slv" },
+      { name: "Spanish; Castilian", code: "spa" }, { name: "Swahili", code: "swa" }, { name: "Swedish", code: "swe" },
+      { name: "Syriac", code: "syr" }, { name: "Tagalog", code: "tgl" }, { name: "Tajik", code: "tgk" },
+      { name: "Tamil", code: "tam" }, { name: "Telugu", code: "tel" }, { name: "Thai", code: "tha" },
+      { name: "Tibetan", code: "bod" }, { name: "Tigrinya", code: "tir" }, { name: "Turkish", code: "tur" },
+      { name: "Uighur; Uyghur", code: "uig" }, { name: "Ukrainian", code: "ukr" }, { name: "Urdu", code: "urd" },
+      { name: "Uzbek", code: "uzb" }, { name: "Uzbek - Cyrillic", code: "uzb_cyrl" }, { name: "Vietnamese", code: "vie" },
+      { name: "Welsh", code: "cym" }, { name: "Yiddish", code: "yid" },
+    ];
+
+    // UI setup
+    const langSelect = el("pdf-language");
+    languages.forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l.code; opt.textContent = l.name;
+      langSelect.appendChild(opt);
+    });
+    langSelect.value = language;
+    langSelect.addEventListener("change", e => {
+      language = e.target.value;
+      localStorage.setItem("language", language);
+    });
+
+    $$("input[name='mode']").forEach(r => {
+      r.addEventListener("change", () => {
+        mode = $$("input[name='mode']").find(x=>x.checked).value;
+        el("mode-label").textContent = mode;
+        el("mode-help").innerHTML = mode === "ACGOLD"
+          ? `AC GOLD: Look for <span class="mono">Trade: PA - Painter</span> or <span class="mono">Trade: LB - Labourer</span> near top; stop at <span class="mono">HEALTH AND SAFETY CHECK LIST</span>.`
+          : `BMD: Count every <span class="mono">Trade:</span> occurrence; export the entire PDF.`;
+      });
+    });
+
+    // Enable buttons when files/inputs present
+    el("pdf-file").addEventListener("change", () => {
+      el("btn-run-ocr").disabled = !el("pdf-file").files.length;
+    });
+    el("address-input").addEventListener("input", () => {
+      el("addr-preview").textContent = el("address-input").value || "—";
+      el("btn-build-docx").disabled = !(el("docx-file").files.length && el("address-input").value.trim().length);
+    });
+    el("docx-file").addEventListener("change", () => {
+      el("btn-build-docx").disabled = !(el("docx-file").files.length && el("address-input").value.trim().length);
+    });
+    el("btn-show-ocr").addEventListener("click", () => {
+      ocrVisible = !ocrVisible;
+      el("ocr-output").style.display = ocrVisible ? "block" : "none";
+      el("btn-show-ocr").textContent = ocrVisible ? "Hide OCR Text" : "Show OCR Text (toggle)";
+    });
+
+    /***************
+     * HELPERS
+     ***************/
+    function readAsUint8Array(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function setPdfProgress(msg) { el("pdf-progress").textContent = msg; }
+
+    function updateUiAfterAnalysis() {
+      el("match-count").textContent = countForReports;
+      el("match-pages").textContent = selectedPages.length ? selectedPages.join(", ") : (mode === "BMD" && originalPdfBytes ? "All pages" : "—");
+      el("report-count").textContent = `Print (${countForReports + 1}) asbestos reports`;
+      el("dup-count").textContent = countForReports;
+      el("btn-extract").disabled = !originalPdfBytes || (mode === "ACGOLD" && selectedPages.length === 0);
+      el("btn-extract").textContent = mode === "ACGOLD" ? "Download Identified Pages PDF" : "Download Full PDF";
+      el("btn-show-ocr").disabled = ocrTextPerPage.length === 0;
+
+      // OCR text dump
+      el("ocr-output").textContent = ocrTextPerPage.map((t, i) => `--- Page ${i+1} ---\n${t.trim()}\n`).join("\n");
+    }
+
+    function getTopBlock(text) {
+      const lines = text.split(/\r?\n/).slice(0, TOP_LINES).join("\n");
+      return lines.slice(0, TOP_CHARS);
+    }
+
+    function textContainsAny(regexes, text) {
+      return regexes.some(re => re.test(text));
+    }
+
+    function indexOfFirst(regex, text) {
+      const m = text.match(regex);
+      return m ? text.indexOf(m[0]) : -1;
+    }
+
+    /***************
+     * PDF → IMAGES → OCR
+     ***************/
+    async function pdfToImages(pdf, scale = 2.0) {
+      const canvas = el("hidden-canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+      const pages = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        pages.push(canvas.toDataURL("image/png"));
+      }
+      return pages;
+    }
+
+    async function runOcrOnImages(images) {
+      const worker = await Tesseract.createWorker({ logger: m => {
+        if (m.status) setPdfProgress(`${m.status} ${m.progress ? Math.round(m.progress*100) + '%' : ''}`);
+      }});
+      await worker.loadLanguage(language);
+      await worker.initialize(language);
+
+      ocrTextPerPage = [];
+      topBlockPerPage = [];
+
+      for (let i = 0; i < images.length; i++) {
+        setPdfProgress(`Recognizing page ${i+1}/${images.length}...`);
+        const { data: { text } } = await worker.recognize(images[i]);
+        ocrTextPerPage.push(text);
+        topBlockPerPage.push(getTopBlock(text));
+      }
+
+      await worker.terminate();
+      setPdfProgress("OCR complete. Analyzing...");
+    }
+
+    /***************
+     * ANALYSIS — AC GOLD / BMD
+     ***************/
+    function analyzeAcGold() {
+      const n = topBlockPerPage.length;
+      const bundles = [];  // [{start,end}]
+      let i = 0;
+
+      while (i < n) {
+        const top = topBlockPerPage[i] || "";
+
+        // Skip if header blockers appear before any Trade: line
+        const idxTradeAny = indexOfFirst(ANY_TRADE_REGEX, top);
+        const blockerBeforeTrade = BLOCKERS_BEFORE_TRADE.some(re => {
+          const idx = indexOfFirst(re, top);
+          return idx >= 0 && (idxTradeAny < 0 || idx < idxTradeAny);
+        });
+
+        const isValidStart = !blockerBeforeTrade && textContainsAny(ACGOLD_START_REGEXES, top);
+
+        if (!isValidStart) { i++; continue; }
+
+        // Found a valid start → collect until a page whose top has the STOP header
+        const start = i;
+        let end = n - 1;
+        for (let j = i + 1; j < n; j++) {
+          if (STOP_AT_HEADER.test(topBlockPerPage[j] || "")) { end = j; break; }
+        }
+        bundles.push({ start, end });
+        i = end + 1; // continue after the bundle
+      }
+
+      // Build selected pages list (1-based)
+      selectedPages = [];
+      bundles.forEach(b => {
+        for (let k = b.start + 1; k <= b.end + 1; k++) selectedPages.push(k);
+      });
+
+      // Count = number of bundles (job tickets)
+      countForReports = bundles.length;
+    }
+
+    function analyzeBmd() {
+      // Count every "Trade:" occurrence in the whole page text
+      const tradeCount = ocrTextPerPage.reduce((sum, txt) => {
+        const m = txt.match(/(^|\n|\r)\s*Trade\s*:/gi);
+        return sum + (m ? m.length : 0);
+      }, 0);
+
+      countForReports = tradeCount;
+      // all pages selected (for display only)
+      selectedPages = Array.from({ length: ocrTextPerPage.length }, (_, i) => i + 1);
+    }
+
+    /***************
+     * MAIN — Handle PDF
+     ***************/
+    async function handlePdfProcess() {
+      try {
+        el("btn-run-ocr").disabled = true;
+        setPdfProgress("Loading PDF...");
+        const file = el("pdf-file").files[0];
+        if (!file) return;
+
+        originalPdfBytes = await readAsUint8Array(file);
+        const pdf = await pdfjsLib.getDocument({ data: originalPdfBytes }).promise;
+
+        setPdfProgress(`Rendering ${pdf.numPages} page(s)...`);
+        const images = await pdfToImages(pdf, 2.0);
+
+        await runOcrOnImages(images);
+
+        // Analyze per mode
+        if (mode === "ACGOLD") analyzeAcGold(); else analyzeBmd();
+
+        updateUiAfterAnalysis();
+        setPdfProgress("Done.");
+      } catch (err) {
+        console.error(err);
+        setPdfProgress(`Error: ${err.message || err}`);
+      } finally {
+        el("btn-run-ocr").disabled = false;
+      }
+    }
+
+    el("btn-run-ocr").addEventListener("click", handlePdfProcess);
+
+    /***************
+     * PDF OUTPUT — Extract / Download
+     ***************/
+    async function extractPdf() {
+      try {
+        if (!originalPdfBytes) return;
+        const { PDFDocument } = window.PDFLib;
+        const src = await PDFDocument.load(originalPdfBytes);
+        const out = await PDFDocument.create();
+
+        if (mode === "ACGOLD") {
+          if (!selectedPages.length) return alert("No matching pages found.");
+          for (const p of selectedPages) {
+            const [copied] = await out.copyPages(src, [p - 1]);
+            out.addPage(copied);
+          }
+        } else {
+          // BMD: copy all pages
+          const total = src.getPageCount();
+          const allIdx = Array.from({ length: total }, (_, i) => i);
+          const copied = await out.copyPages(src, allIdx);
+          copied.forEach(cp => out.addPage(cp));
+        }
+
+        const bytes = await out.save();
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = mode === "ACGOLD" ? "acgold-selected-pages.pdf" : "bmd-all-pages.pdf";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      } catch (err) {
+        alert("Failed to build PDF: " + (err.message || err));
+        console.error(err);
+      }
+    }
+
+    el("btn-extract").addEventListener("click", extractPdf);
+
+    /***************
+     * DOCX — Replace & Duplicate Page 2
+     ***************/
+    function replaceInTextNodes(root, from, to) {
+      const re = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"); // exact, case-sensitive
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+      const nodes = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (re.test(node.nodeValue)) nodes.push(node);
+      }
+      nodes.forEach(n => n.nodeValue = n.nodeValue.replace(re, to));
+      return nodes.length;
+    }
+
+    function htmlTablesToDocxTables(docxNS, htmlDocument) {
+      const { Table, TableRow, TableCell, Paragraph, WidthType } = docxNS;
+      const tables = Array.from(htmlDocument.body.querySelectorAll("table"));
+      return tables.map(tbl => {
+        const rows = Array.from(tbl.querySelectorAll("tr")).map(tr => {
+          const cells = Array.from(tr.querySelectorAll("th,td")).map(td => {
+            const paras = [];
+            const collect = (node) => {
+              if (node.nodeType === 1 && node.tagName.toLowerCase() === "p") {
+                paras.push(node.textContent || "");
+              } else if (node.nodeType === 1) {
+                node.childNodes.forEach(collect);
+              } else if (node.nodeType === 3) {
+                paras.push(node.nodeValue || "");
+              }
+            };
+            collect(td);
+            const paragraphs = (paras.length ? paras : [""]).map(t => new Paragraph(String(t).replace(/\u00A0/g, " ")));
+            return new TableCell({ children: paragraphs });
+          });
+          return new TableRow({ children: cells });
+        });
+        return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows });
+      });
+    }
+
+    async function buildModifiedDocx() {
+      const status = el("docx-status");
+      const replacement = el("address-input").value.trim();
+      const file = el("docx-file").files[0];
+      if (!replacement) { status.innerHTML = `<span class="err">Enter a replacement address.</span>`; return; }
+      if (!file) { status.innerHTML = `<span class="err">Select a DOCX template.</span>`; return; }
+      if (countForReports === 0) {
+        status.innerHTML = `<span class="warn">Note: count is 0 — Page 2 will not be duplicated. Run the PDF step first if needed.</span>`;
+      }
+
+      try {
+        el("btn-build-docx").disabled = true;
+        status.textContent = "Converting DOCX to HTML...";
+        const arrayBuffer = await file.arrayBuffer();
+        const { value: htmlString } = await window.mammoth.convertToHtml({ arrayBuffer });
+
+        // Parse HTML safely
+        const parser = new DOMParser();
+        const htmlDoc = parser.parseFromString(`<div id="root">${htmlString}</div>`, "text/html");
+
+        // Replace the address string
+        const replacedCount = replaceInTextNodes(htmlDoc.body, PHRASE_DOCX, replacement);
+
+        // Ensure we have at least 2 tables
+        const tables = Array.from(htmlDoc.body.querySelectorAll("table"));
+        if (tables.length < 2) {
+          status.innerHTML = `<span class="err">Expected at least 2 tables (pages). Found ${tables.length}.</span>`;
+          el("btn-build-docx").disabled = false; return;
+        }
+
+        // Duplicate Page 2 (table[1]) exactly countForReports times, after the original
+        const page2 = tables[1];
+        for (let i = 0; i < countForReports; i++) {
+          const clone = page2.cloneNode(true);
+          page2.parentNode.insertBefore(clone, page2.nextSibling);
+        }
+
+        // Build DOCX (tables only, basic text fidelity)
+        status.textContent = "Rebuilding DOCX...";
+        const { Document, Packer, Paragraph } = window.docx;
+        const docxTables = htmlTablesToDocxTables(window.docx, htmlDoc);
+        const children = [];
+        children.push(new Paragraph("")); // spacer
+        docxTables.forEach(t => children.push(t));
+        children.push(new Paragraph("")); // spacer
+
+        const newDoc = new Document({ sections: [{ children }] });
+        const blob = await Packer.toBlob(newDoc);
+
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "modified-template.docx";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+
+        status.innerHTML = `<span class="ok">Done.</span> Replaced <span class="mono">${PHRASE_DOCX}</span> → <span class="mono">${replacement}</span> (${replacedCount} occurrence(s)). Page 2 duplicated <strong>${countForReports}</strong> time(s).`;
+      } catch (err) {
+        console.error(err);
+        status.innerHTML = `<span class="err">Failed to build DOCX: ${err.message || err}</span>`;
+      } finally {
+        el("btn-build-docx").disabled = false;
+      }
+    }
+
+    el("btn-build-docx").addEventListener("click", buildModifiedDocx);
+
+    /***************
+     * WIRE UP PDF BUTTON
+     ***************/
+    el("btn-run-ocr").addEventListener("click", handlePdfProcess);
+
+    // Extract button ready-state reacts to analysis
+    const observer = new MutationObserver(() => {
+      el("btn-extract").disabled = !originalPdfBytes || (mode === "ACGOLD" && selectedPages.length === 0);
+    });
+    observer.observe(el("match-pages"), { childList: true, characterData: true, subtree: true });
+
+    el("btn-extract").addEventListener("click", extractPdf);
+  </script>
 </body>
 </html>
