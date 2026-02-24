@@ -25,8 +25,8 @@
   <!-- Hidden canvas used to render page 1 before OCR -->
   <canvas id="pdfCanvas"></canvas>
 
-  <!-- Load Tesseract UMD build as a global (NOT via ES module import) -->
-  ./libs/tesseract/tesseract.min.js</script>
+  <!-- Load Tesseract UMD build as a global (correctly opened script tag) -->
+  <script src="./libs/tesseract/tesseract.min.js"></script>
 
   <!-- PDF.js (ES module) and app code -->
   <script type="module">
@@ -74,7 +74,7 @@
            --------------------------------------------- */
         const { createWorker, setLogging } = Tesseract;
 
-        // Optional: enable internal logging (won’t clone a function into worker)
+        // Optional: enable internal logging (this does not pass a function into the worker)
         setLogging(true);
 
         const worker = await createWorker({
@@ -104,7 +104,7 @@
           .join(" ");
 
         statusEl.textContent = "OCR complete.";
-        resultEl.textContent = "First OCR words: " + firstWords || "(none)";
+        resultEl.textContent = "First OCR words: " + (firstWords || "(none)");
 
       } catch (err) {
         console.error(err);
@@ -112,5 +112,11 @@
       }
     });
   </script>
+
+  <p class="dim">
+    If you opened this file directly (via <code>file://</code>) and the WASM/worker won’t load,
+    run a tiny local server from the folder, e.g. <code>python -m http.server 8000</code>
+    and visit <code>http://localhost:8000/test-ocr.html</code>.
+  </p>
 </body>
 </html>
